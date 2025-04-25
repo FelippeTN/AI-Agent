@@ -1,0 +1,13 @@
+# VIRTUAL ENVIRONMENT
+.venv/
+venv/
+env/
+ENV/
+.env/
+
+# PYTHON CACHE
+__pycache__/
+*.py[cod]
+
+# JSON CONFIG
+config.json
