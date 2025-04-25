@@ -5,6 +5,7 @@ from email.header import decode_header
 from uuid import uuid4
 from agent_config import load_config, agent_response
 
+config = load_config()
 
 def decode_email_subject(subject):
     decoded_subject = decode_header(subject)[0][0]
@@ -15,7 +16,7 @@ def decode_email_subject(subject):
             return decoded_subject.decode('utf-8', errors='ignore')
     return decoded_subject
 
-def fetch_new_emails(email_address, email_password):
+def fetch_new_emails(email_address, email_password, max_emails=10):
     try:
         # Conectar ao servidor IMAP do Gmail
         imap_server = "imap.gmail.com"
@@ -24,10 +25,14 @@ def fetch_new_emails(email_address, email_password):
         imap.select("INBOX")
 
         # Buscar emails não lidos
+        st.write("Buscando emails não lidos...")
         _, message_numbers = imap.search(None, "UNSEEN")
-        emails = []
+        message_ids = sorted(message_numbers[0].split(), key=int, reverse=True)
+        message_ids = message_ids[:max_emails]
+        st.write(f"Processando {len(message_ids)} emails não lidos (máximo: {max_emails})...")
         
-        for num in message_numbers[0].split():
+        emails = []
+        for num in message_ids:
             _, msg_data = imap.fetch(num, "(RFC822)")
             email_body = msg_data[0][1]
             email_msg = email.message_from_bytes(email_body)
@@ -59,8 +64,10 @@ def fetch_new_emails(email_address, email_password):
             })
         
         imap.logout()
+        st.write("Busca concluída! Gerando relatórios...")
         return emails
     except Exception as e:
+        st.error(f"Erro ao buscar emails: {str(e)}")
         return f"Erro ao buscar emails: {str(e)}"
 
 # Configuração da interface Streamlit
@@ -68,7 +75,7 @@ st.set_page_config(page_title="Assistente de IA", page_icon="🤖")
 
 # Menu de navegação lateral
 st.sidebar.title("Navegação")
-opcao = st.sidebar.radio("Selecione uma funcionalidade:", ["Conversar com Chatbot", "Relatório do Email", "Verificar Novos Emails"])
+opcao = st.sidebar.radio("Selecione uma funcionalidade:", ["Conversar com Chatbot", "Verificar Novos Emails"])
 
 # Inicializar históricos
 if 'conversation_history' not in st.session_state:
@@ -97,40 +104,7 @@ if opcao == "Conversar com Chatbot":
         st.session_state.conversation_history = []
         st.rerun()
 
-# Funcionalidade: Relatório do Email
-elif opcao == "Relatório do Email":
-    st.title("Gerador de Relatório de Email")
-    st.subheader("Insira o conteúdo do email e obtenha um relatório ou resumo.")
 
-    email_input = st.text_area("Digite o conteúdo do email aqui:", height=200)
-    if st.button("Gerar Relatório"):
-        if email_input:
-            system_prompt = "Você é um assistente de IA especializado em análise de emails. Gere um relatório conciso ou resumo do conteúdo do email fornecido, destacando pontos-chave, tom e ações sugeridas."
-            report = agent_response(email_input, st.session_state.report_history, system_prompt)
-            st.session_state.report_history.append({"role": "user", "content": email_input})
-            st.session_state.report_history.append({"role": "assistant", "content": report})
-            st.write("**Relatório Gerado:**")
-            st.write(report)
-        else:
-            st.warning("Por favor, insira o conteúdo do email.")
-
-    if st.session_state.report_history:
-        st.subheader("Histórico de Relatórios")
-        for message in st.session_state.report_history:
-            with st.container():
-                if message["role"] == "user":
-                    st.write("**Email Inserido:**")
-                    st.write(message["content"])
-                else:
-                    st.write("**Relatório Gerado:**")
-                    st.write(message["content"])
-                st.divider()
-
-    if st.button("Limpar Histórico de Relatórios"):
-        st.session_state.report_history = []
-        st.rerun()
-
-# Funcionalidade: Verificar Novos Emails
 elif opcao == "Verificar Novos Emails":
     st.title("Verificar Novos Emails")
     st.subheader("Busque novos emails não lidos e gere um relatório.")
